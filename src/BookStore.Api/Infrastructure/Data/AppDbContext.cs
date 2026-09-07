@@ -17,13 +17,11 @@ public class AppDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // User configuration
         modelBuilder.Entity<User>(entity =>
         {
             entity.HasIndex(u => u.Email).IsUnique();
         });
 
-        // Book configuration
         modelBuilder.Entity<Book>(entity =>
         {
             entity.HasIndex(b => b.Isbn).IsUnique();
@@ -34,13 +32,11 @@ public class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
-        // Category configuration
         modelBuilder.Entity<Category>(entity =>
         {
             entity.HasIndex(c => c.Name).IsUnique();
         });
 
-        // Seed data
         SeedData(modelBuilder);
     }
 
@@ -52,16 +48,15 @@ public class AppDbContext : DbContext
             new Category { Id = 3, Name = "Science", Description = "Scientific research and discovery" }
         );
 
-        // Seed admin user with pre-hashed password: "Admin@123"
-        // Salt: dGVzdHNhbHQxMjM0NTY= (base64 of "testsalt123456")
-        // This is a development-only seed. Change in production.
+        // Development-only demo account. Password: Admin@123
+        // HMACSHA256 with Base64 salt "testsalt123456" using the same format as UserService.
         modelBuilder.Entity<User>().HasData(
             new User
             {
                 Id = 1,
                 Email = "admin@bookstore.com",
                 Name = "Admin",
-                PasswordHash = "dGVzdHNhbHQxMjM0NTYZ.kXJG8sTO90qRpUGPHFxKyMnXNNnGqR/iLxVxqRV1v3c=",
+                PasswordHash = "dGVzdHNhbHQxMjM0NTY=.cmHnImER7bWPA8KDI71iH5qY/ZG6711AeCKycwcm/w4=",
                 Role = "Admin",
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
             }
