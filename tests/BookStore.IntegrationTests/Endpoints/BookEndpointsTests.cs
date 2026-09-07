@@ -24,7 +24,7 @@ public class BookEndpointsTests : IClassFixture<CustomWebApplicationFactory>
     {
         title = "Test Book",
         author = "Test Author",
-        isbn = isbn ?? $"ISBN{Guid.NewGuid().ToString("N")[..10]}",
+        isbn = isbn ?? $"ISBN{Guid.NewGuid().ToString("N")[..9]}",
         year = 2023,
         price = 29.99,
         stock = 5,
@@ -34,13 +34,9 @@ public class BookEndpointsTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task GetAll_Authenticated_Returns200WithPagination()
     {
-        // Arrange
         var client = await AuthHelper.AuthenticateAsAdminAsync(_factory);
-
-        // Act
         var response = await client.GetAsync("/books");
 
-        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await response.Content.ReadAsStringAsync();
         var doc = JsonDocument.Parse(json);
@@ -59,70 +55,53 @@ public class BookEndpointsTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task Create_AsAdmin_Returns201()
     {
-        // Arrange
         var client = await AuthHelper.AuthenticateAsAdminAsync(_factory);
         var catId = await CreateCategoryAsync(client);
 
-        // Act
         var response = await client.PostAsJsonAsync("/books", BookPayload(catId));
 
-        // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
     [Fact]
     public async Task Create_AsEditor_Returns201()
     {
-        // Arrange — Editors can create books (Admin,Editor role)
         var adminClient = await AuthHelper.AuthenticateAsAdminAsync(_factory);
         var catId = await CreateCategoryAsync(adminClient);
-
         var editorClient = await AuthHelper.AuthenticateAsEditorAsync(_factory);
 
-        // Act
         var response = await editorClient.PostAsJsonAsync("/books", BookPayload(catId));
 
-        // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
     [Fact]
     public async Task Create_DuplicateIsbn_Returns409()
     {
-        // Arrange
         var client = await AuthHelper.AuthenticateAsAdminAsync(_factory);
         var catId = await CreateCategoryAsync(client);
         var isbn = $"DUP{Guid.NewGuid().ToString("N")[..9]}";
         await client.PostAsJsonAsync("/books", BookPayload(catId, isbn));
 
-        // Act
         var response = await client.PostAsJsonAsync("/books", BookPayload(catId, isbn));
 
-        // Assert
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
     [Fact]
     public async Task Create_InvalidCategory_Returns400()
     {
-        // Arrange
         var client = await AuthHelper.AuthenticateAsAdminAsync(_factory);
-
-        // Act
         var response = await client.PostAsJsonAsync("/books", BookPayload(99999));
-
-        // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
     public async Task Create_MissingTitle_Returns400()
     {
-        // Arrange
         var client = await AuthHelper.AuthenticateAsAdminAsync(_factory);
         var catId = await CreateCategoryAsync(client);
 
-        // Act
         var response = await client.PostAsJsonAsync("/books", new
         {
             title = "",
@@ -134,24 +113,21 @@ public class BookEndpointsTests : IClassFixture<CustomWebApplicationFactory>
             categoryId = catId
         });
 
-        // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
     public async Task GetById_ExistingBook_Returns200()
     {
-        // Arrange
         var client = await AuthHelper.AuthenticateAsAdminAsync(_factory);
         var catId = await CreateCategoryAsync(client);
         var createResp = await client.PostAsJsonAsync("/books", BookPayload(catId));
+        createResp.EnsureSuccessStatusCode();
         var json = await createResp.Content.ReadAsStringAsync();
         var id = JsonDocument.Parse(json).RootElement.GetProperty("id").GetInt32();
 
-        // Act
         var response = await client.GetAsync($"/books/{id}");
 
-        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
@@ -166,14 +142,13 @@ public class BookEndpointsTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task Update_AsAdmin_Returns200()
     {
-        // Arrange
         var client = await AuthHelper.AuthenticateAsAdminAsync(_factory);
         var catId = await CreateCategoryAsync(client);
         var createResp = await client.PostAsJsonAsync("/books", BookPayload(catId));
+        createResp.EnsureSuccessStatusCode();
         var json = await createResp.Content.ReadAsStringAsync();
         var id = JsonDocument.Parse(json).RootElement.GetProperty("id").GetInt32();
 
-        // Act
         var response = await client.PutAsJsonAsync($"/books/{id}", new
         {
             title = "Updated Title",
@@ -185,23 +160,20 @@ public class BookEndpointsTests : IClassFixture<CustomWebApplicationFactory>
             categoryId = catId
         });
 
-        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
     public async Task Update_AsEditor_Returns403()
     {
-        // Arrange — only Admin can update
         var adminClient = await AuthHelper.AuthenticateAsAdminAsync(_factory);
         var catId = await CreateCategoryAsync(adminClient);
         var createResp = await adminClient.PostAsJsonAsync("/books", BookPayload(catId));
+        createResp.EnsureSuccessStatusCode();
         var json = await createResp.Content.ReadAsStringAsync();
         var id = JsonDocument.Parse(json).RootElement.GetProperty("id").GetInt32();
-
         var editorClient = await AuthHelper.AuthenticateAsEditorAsync(_factory);
 
-        // Act
         var response = await editorClient.PutAsJsonAsync($"/books/{id}", new
         {
             title = "Hacked",
@@ -213,27 +185,22 @@ public class BookEndpointsTests : IClassFixture<CustomWebApplicationFactory>
             categoryId = catId
         });
 
-        // Assert
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
     public async Task Delete_AsAdmin_Returns204()
     {
-        // Arrange
         var client = await AuthHelper.AuthenticateAsAdminAsync(_factory);
         var catId = await CreateCategoryAsync(client);
         var createResp = await client.PostAsJsonAsync("/books", BookPayload(catId));
+        createResp.EnsureSuccessStatusCode();
         var json = await createResp.Content.ReadAsStringAsync();
         var id = JsonDocument.Parse(json).RootElement.GetProperty("id").GetInt32();
 
-        // Act
         var response = await client.DeleteAsync($"/books/{id}");
 
-        // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-
-        // Verify it's gone
         var getResp = await client.GetAsync($"/books/{id}");
         Assert.Equal(HttpStatusCode.NotFound, getResp.StatusCode);
     }
@@ -241,26 +208,22 @@ public class BookEndpointsTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task Delete_AsEditor_Returns403()
     {
-        // Arrange
         var adminClient = await AuthHelper.AuthenticateAsAdminAsync(_factory);
         var catId = await CreateCategoryAsync(adminClient);
         var createResp = await adminClient.PostAsJsonAsync("/books", BookPayload(catId));
+        createResp.EnsureSuccessStatusCode();
         var json = await createResp.Content.ReadAsStringAsync();
         var id = JsonDocument.Parse(json).RootElement.GetProperty("id").GetInt32();
-
         var editorClient = await AuthHelper.AuthenticateAsEditorAsync(_factory);
 
-        // Act
         var response = await editorClient.DeleteAsync($"/books/{id}");
 
-        // Assert
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
     public async Task GetAll_WithTitleFilter_ReturnsFilteredResults()
     {
-        // Arrange
         var client = await AuthHelper.AuthenticateAsAdminAsync(_factory);
         var catId = await CreateCategoryAsync(client);
         var uniqueTitle = $"UniqueBook-{Guid.NewGuid():N}";
@@ -275,12 +238,10 @@ public class BookEndpointsTests : IClassFixture<CustomWebApplicationFactory>
             categoryId = catId
         });
 
-        // Act
         var response = await client.GetAsync($"/books?title={uniqueTitle}");
         var json = await response.Content.ReadAsStringAsync();
         var doc = JsonDocument.Parse(json);
 
-        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(1, doc.RootElement.GetProperty("totalCount").GetInt32());
     }
