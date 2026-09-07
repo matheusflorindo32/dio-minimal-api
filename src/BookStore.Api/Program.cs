@@ -128,11 +128,13 @@ app.MapUserEndpoints();
 app.MapBookEndpoints();
 app.MapCategoryEndpoints();
 
-// --- Database Migration ---
+// --- Database initialization ---
+// This educational SQLite project does not ship EF migrations. EnsureCreated
+// makes a fresh clone runnable and applies the model + seed data atomically.
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
+    db.Database.EnsureCreated();
 }
 
 app.Run();
