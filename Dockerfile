@@ -6,7 +6,7 @@ WORKDIR /src
 COPY src/BookStore.Api/BookStore.Api.csproj src/BookStore.Api/
 RUN dotnet restore src/BookStore.Api/BookStore.Api.csproj
 
-# Copy everything else and build
+# Copy everything else and publish
 COPY src/ src/
 RUN dotnet publish src/BookStore.Api/BookStore.Api.csproj \
     -c Release \
@@ -17,12 +17,15 @@ RUN dotnet publish src/BookStore.Api/BookStore.Api.csproj \
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 
-# Create non-root user for security
-RUN adduser --disabled-password --gecos "" appuser
+# curl is used only by the container healthcheck.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && adduser --disabled-password --gecos "" appuser
 
 COPY --from=build /app/publish .
 
-# Create directory for SQLite database
+# Persist SQLite outside the container writable layer.
 RUN mkdir -p /app/data && chown -R appuser:appuser /app/data
 
 USER appuser
