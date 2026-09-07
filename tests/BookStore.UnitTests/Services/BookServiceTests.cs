@@ -76,8 +76,11 @@ public class BookServiceTests
     [Fact]
     public void GetAll_ReturnsPaginatedResults()
     {
-        // Arrange
+        // Arrange — isolate pagination from the application's seeded books.
         using var context = TestDbContextFactory.Create();
+        context.Books.RemoveRange(context.Books);
+        context.SaveChanges();
+
         var service = new BookService(context);
         var category = SeedCategory(context);
         for (int i = 0; i < 25; i++)
