@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
@@ -10,6 +10,8 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{1B49173C-BA10-4A4A-A750-7BCCEA2E7255}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BookStore.UnitTests", "tests\BookStore.UnitTests\BookStore.UnitTests.csproj", "{93E76B6D-9A8B-40D1-986A-0B320717D85D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BookStore.IntegrationTests", "tests\BookStore.IntegrationTests\BookStore.IntegrationTests.csproj", "{C6F4C254-8DDF-47B9-A6F7-8BE53494EE01}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -28,9 +30,14 @@ Global
 		{93E76B6D-9A8B-40D1-986A-0B320717D85D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{93E76B6D-9A8B-40D1-986A-0B320717D85D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{93E76B6D-9A8B-40D1-986A-0B320717D85D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C6F4C254-8DDF-47B9-A6F7-8BE53494EE01}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C6F4C254-8DDF-47B9-A6F7-8BE53494EE01}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C6F4C254-8DDF-47B9-A6F7-8BE53494EE01}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C6F4C254-8DDF-47B9-A6F7-8BE53494EE01}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{A582A49C-B770-4E27-9230-5B1BF60A195D} = {ADD63068-E6C2-4D5F-B3FA-7E7AD6A97088}
 		{93E76B6D-9A8B-40D1-986A-0B320717D85D} = {1B49173C-BA10-4A4A-A750-7BCCEA2E7255}
+		{C6F4C254-8DDF-47B9-A6F7-8BE53494EE01} = {1B49173C-BA10-4A4A-A750-7BCCEA2E7255}
 	EndGlobalSection
 EndGlobal
