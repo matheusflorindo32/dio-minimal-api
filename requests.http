@@ -1,0 +1,144 @@
+### BookStore API - HTTP Request Examples
+### Use with VS Code REST Client extension or JetBrains HTTP Client
+
+@baseUrl = http://localhost:5000
+@token = {{login.response.body.token}}
+
+### ============================
+### Authentication
+### ============================
+
+### Register a new user (Admin)
+# @name register
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "newadmin@bookstore.com",
+  "password": "Admin@123",
+  "name": "New Admin",
+  "role": 0
+}
+
+### Register a new user (Editor)
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "editor@bookstore.com",
+  "password": "Editor@123",
+  "name": "Editor User",
+  "role": 1
+}
+
+### Login
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "newadmin@bookstore.com",
+  "password": "Admin@123"
+}
+
+### ============================
+### Categories (requires auth)
+### ============================
+
+### List all categories
+GET {{baseUrl}}/categories
+Authorization: Bearer {{token}}
+
+### Get category by ID
+GET {{baseUrl}}/categories/1
+Authorization: Bearer {{token}}
+
+### Create category (Admin only)
+POST {{baseUrl}}/categories
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Philosophy",
+  "description": "Philosophy and ethics books"
+}
+
+### Update category (Admin only)
+PUT {{baseUrl}}/categories/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Fiction & Literature",
+  "description": "Novels, short stories, poetry, and literary works"
+}
+
+### Delete category (Admin only)
+DELETE {{baseUrl}}/categories/4
+Authorization: Bearer {{token}}
+
+### ============================
+### Books (requires auth)
+### ============================
+
+### List all books (with pagination)
+GET {{baseUrl}}/books?page=1&pageSize=10
+Authorization: Bearer {{token}}
+
+### List books with title filter
+GET {{baseUrl}}/books?title=clean
+Authorization: Bearer {{token}}
+
+### List books with author filter
+GET {{baseUrl}}/books?author=martin
+Authorization: Bearer {{token}}
+
+### Get book by ID
+GET {{baseUrl}}/books/1
+Authorization: Bearer {{token}}
+
+### Create book (Admin or Editor)
+POST {{baseUrl}}/books
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "title": "Design Patterns",
+  "author": "Gang of Four",
+  "isbn": "9780201633610",
+  "year": 1994,
+  "price": 44.99,
+  "stock": 8,
+  "categoryId": 2
+}
+
+### Update book (Admin only)
+PUT {{baseUrl}}/books/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "title": "Clean Code: A Handbook of Agile Software Craftsmanship",
+  "author": "Robert C. Martin",
+  "isbn": "9780132350884",
+  "year": 2008,
+  "price": 42.99,
+  "stock": 20,
+  "categoryId": 2
+}
+
+### Delete book (Admin only)
+DELETE {{baseUrl}}/books/3
+Authorization: Bearer {{token}}
+
+### ============================
+### Users (Admin only)
+### ============================
+
+### List all users
+GET {{baseUrl}}/users
+Authorization: Bearer {{token}}
+
+### Get user by ID
+GET {{baseUrl}}/users/1
+Authorization: Bearer {{token}}
