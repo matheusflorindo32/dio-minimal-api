@@ -3,178 +3,146 @@
 **Projeto:** BookStore API — Minimal API com .NET 8  
 **Desafio:** DIO Minimal API  
 **Autor:** Matheus Florindo  
-**Data:** 2024-01-15  
+**Data da auditoria:** 07/09/2026  
+**Baseline:** `af5f3a06f30a74cbb3cb96ed79ad819e2f0aca0c`  
+**Branch auditada:** `fix/premium-elite-audit`
 
----
+## Executive Summary
 
-## Score Final: 9.0/10
+A baseline original **não estava pronta para entrega**, apesar de documentação anterior atribuir nota 9,0/10. O GitHub Actions falhava no build, o projeto de integração não fazia parte da solution e uma falha de autorização permitia que um cliente anônimo solicitasse role `Admin` no registro público.
 
-| Critério | Peso | Nota | Justificativa |
-|---|---|---|---|
-| Funcionalidade (CRUD completo, auth, paginação) | 20% | 9.5 | Todos os endpoints implementados com validação, paginação e filtros |
-| Segurança (hash, JWT, autorização, secrets) | 20% | 9.0 | HMACSHA256+salt, JWT validado, roles aplicadas. Limitação: não é KDF lento |
-| Testes (cobertura, isolamento, integração) | 15% | 9.0 | 61 testes, unitários + integração, cenários positivos e negativos |
-| Arquitetura (organização, decisões justificadas) | 15% | 9.5 | Separação clara, sem overengineering, cada decisão documentada |
-| Documentação (API, segurança, arquitetura, learning) | 10% | 9.5 | 5 documentos + README + requests.http + .env.example |
-| Docker e CI (containerização, pipeline) | 10% | 8.5 | Multi-stage, non-root, GH Actions. Sem coverage no CI |
-| Evolução vs referência (originalidade, melhorias) | 10% | 9.5 | 11 melhorias documentadas vs projeto DIO original |
+A auditoria evidence-first corrigiu os blockers e ampliou o quality gate para validar o comportamento real da solução.
 
----
+### Evidência automatizada pré-certificação
 
-## Checklist de Entrega (20 itens)
+GitHub Actions **CI run #16** executado na branch de correção:
 
-### Código-fonte
+- Restore: PASS
+- Build Release: PASS
+- Unit Tests: PASS
+- Integration Tests: PASS
+- NuGet vulnerable package check: PASS
+- Docker Compose validation: PASS
+- Docker image build: PASS
+- Test artifacts upload: PASS
 
-| # | Item | Status | Evidência |
-|---|---|---|---|
-| 1 | Solution .NET 8 compila sem erros | ⚠️ NÃO VERIFICADO | NuGet bloqueado neste ambiente. Revisão estrutural OK. **Verificar localmente com `dotnet build`** |
-| 2 | Todos os endpoints funcionam (CRUD + Auth) | ⚠️ NÃO VERIFICADO | Código correto por revisão. **Verificar com `requests.http` ou Swagger** |
-| 3 | Testes passam | ⚠️ NÃO VERIFICADO | 61 testes escritos. **Verificar com `dotnet test`** |
-| 4 | Sem warnings de compilação críticos | ⚠️ NÃO VERIFICADO | Código limpo por revisão. **Verificar com `dotnet build`** |
+A submissão final somente deve usar `main` após o merge deste PR e um novo CI verde na branch principal.
 
-### Segurança
+## Findings → Fix → Proof
 
-| # | Item | Status | Evidência |
-|---|---|---|---|
-| 5 | Senhas hasheadas (nunca texto puro) | ✅ | `UserService.BCryptHash()` — HMACSHA256 + salt CSPRNG |
-| 6 | JWT com validação completa | ✅ | 4 parâmetros de validação ativos em `Program.cs` |
-| 7 | Autorização por roles aplicada | ✅ | `[Authorize(Roles)]` em todos os endpoints de escrita |
-| 8 | Sem secrets no repositório | ✅ | `.gitignore` exclui `.env`, chave marcada "CHANGE" |
-| 9 | PasswordHash nunca em resposta | ✅ | DTOs excluem o campo |
-
-### Documentação
-
-| # | Item | Status | Arquivo |
-|---|---|---|---|
-| 10 | README com instruções de uso | ✅ | `README.md` |
-| 11 | Documentação de API | ✅ | `docs/api.md` |
-| 12 | Decisões arquiteturais | ✅ | `docs/architecture.md` |
-| 13 | Práticas de segurança | ✅ | `docs/security.md` |
-| 14 | Evolução e aprendizado | ✅ | `docs/learning.md` |
-| 15 | Exemplos de requisição | ✅ | `requests.http` |
-
-### Operações
-
-| # | Item | Status | Arquivo |
-|---|---|---|---|
-| 16 | Dockerfile multi-stage | ✅ | `Dockerfile` |
-| 17 | docker-compose funcional | ✅ | `docker-compose.yml` |
-| 18 | CI com GitHub Actions | ✅ | `.github/workflows/ci.yml` |
-| 19 | .gitignore completo | ✅ | `.gitignore` |
-| 20 | .env.example com placeholders | ✅ | `.env.example` |
-
-### Resumo
-
-- **Aprovados:** 16/20
-- **Não verificados (requerem build local):** 4/20
-- **Reprovados:** 0/20
-
----
-
-## Matriz de Evolução vs Referência DIO
-
-| # | Aspecto | Referência DIO | Este Projeto | Melhoria |
+| ID | Finding | Prioridade | Correção | Prova |
 |---|---|---|---|---|
-| 1 | Runtime | .NET 7 | .NET 8 (LTS) | ✅ |
-| 2 | Hosting model | Startup.cs (antigo) | Top-level statements (moderno) | ✅ |
-| 3 | Banco | MySQL (requer instalação) | SQLite (zero dependência) | ✅ |
-| 4 | Senhas | Texto puro | HMACSHA256 + salt | ✅ |
-| 5 | DTOs | Entidades expostas | Records separados (Create/Update/Response) | ✅ |
-| 6 | Validação | Inline sem padrão | Problem Details (RFC 9110) | ✅ |
-| 7 | Paginação | Nenhuma | PagedResponse\<T\> genérico | ✅ |
-| 8 | Filtragem | Nenhuma | Por título e autor | ✅ |
-| 9 | Relacionamentos | Nenhum | Book → Category (1:N com FK) | ✅ |
-| 10 | Testes | MSTest, 1 teste | xUnit, 61 testes (unitários + integração) | ✅ |
-| 11 | Docker | Não | Multi-stage, non-root user | ✅ |
-| 12 | CI | Não | GitHub Actions (build + tests) | ✅ |
-| 13 | Roles | Sem enforcement | [Authorize(Roles)] em todos os endpoints | ✅ |
-| 14 | Documentação | Mínima | 5 documentos + requests.http | ✅ |
+| F-01 | `.WithOpenApi()` sem pacote necessário | P0 | adicionada referência `Microsoft.AspNetCore.OpenApi` | build CI |
+| F-02 | IntegrationTests fora da `BookStore.sln` | P0 | projeto incluído na solution | restore/build CI incluem 3 projetos |
+| F-03 | EF InMemory usado sem package | P0 | `Microsoft.EntityFrameworkCore.InMemory` adicionado | build CI |
+| F-04 | `/auth/register` permitia autoatribuição de Admin | P0 Security | registro público força `Editor` | integration test dedicado |
+| F-05 | hash do Admin seed não correspondia à senha documentada | P1 | hash seed corrigido | login Admin usado pelos testes de integração |
+| F-06 | `Migrate()` sem migrations versionadas | P1 | `EnsureCreated()` no escopo SQLite educacional | integration host/fresh schema |
+| F-07 | teste unitário de paginação contaminado pelo seed | P1 | isolamento explícito do cenário | 31/31 unit tests |
+| F-08 | fixtures de Book geravam ISBN com 14 caracteres | P1 | fixtures alinhados ao contrato 10–13 | integration suite verde |
+| F-09 | README/requests/docs usavam porta 5000 | P1 DX | alinhados ao launch profile `5004` | documentação atual |
+| F-10 | Docker healthcheck usava curl ausente | P1 DevOps | curl instalado + healthcheck na raiz | Docker image build CI |
+| F-11 | Compose `version` obsoleto | P2 | campo removido | `docker compose config` CI |
+| F-12 | CI não validava dependências/Docker | P2 | novos gates adicionados | run #16 |
+| F-13 | auditorias históricas faziam claims sem execução | P1 Docs | relatórios substituídos por evidência de 2026 | docs atuais |
 
-**Total de melhorias documentadas: 14**
+## Testes
 
----
+A solução possui duas suítes independentes:
 
-## Arquivos do Projeto
+- **31 testes unitários**;
+- **34 testes de integração HTTP**;
+- **65 testes automatizados no total**.
 
-```
-dio-minimal-api/
-├── src/BookStore.Api/
-│   ├── Program.cs                          # Entry point
-│   ├── appsettings.json                    # Base config
-│   ├── appsettings.Development.json        # Dev config
-│   ├── Domain/
-│   │   ├── DTOs/                           # 6 arquivos (records)
-│   │   ├── Entities/                       # 3 entidades
-│   │   ├── Enums/                          # UserRole
-│   │   ├── Interfaces/                     # 3 contratos
-│   │   └── Services/                       # 3 implementações
-│   ├── Endpoints/                          # 4 route groups
-│   └── Infrastructure/Data/               # AppDbContext + seed
-├── tests/
-│   ├── BookStore.UnitTests/                # 29 testes
-│   └── BookStore.IntegrationTests/         # 32 testes
-├── docs/
-│   ├── architecture.md                     # Decisões arquiteturais
-│   ├── security.md                         # Práticas de segurança
-│   ├── api.md                              # Referência de API
-│   ├── learning.md                         # Evolução e aprendizado
-│   ├── security-audit.md                   # Auditoria de segurança
-│   ├── blind-audit.md                      # Auditoria cega (3 revisores)
-│   └── delivery-report.md                  # Este documento
-├── .github/workflows/ci.yml               # CI pipeline
-├── Dockerfile                              # Multi-stage build
-├── docker-compose.yml                      # Orquestração
-├── .dockerignore
-├── .gitignore
-├── .editorconfig
-├── .env.example
-├── requests.http                           # Exemplos REST Client
-└── README.md                               # Documentação principal
-```
+A integração cobre, entre outros:
 
----
+- login válido/inválido;
+- registro e duplicidade;
+- tentativa de autoelevação de privilégio;
+- `401` sem autenticação;
+- `403` por role inadequada;
+- CRUD e validações de Books/Categories;
+- filtros, paginação, `404` e `409`.
 
-## Instruções para o Autor
+## Comparação com o desafio DIO
 
-### Antes de submeter ao desafio DIO:
+| Dimensão | Referência DIO | BookStore API | Resultado |
+|---|---|---|---|
+| Minimal API | Sim | Sim, .NET 8 | ✅ |
+| Persistência | MySQL | SQLite/EF Core | ⭐ adaptação autoral |
+| CRUD | Sim | Books + Categories | ⭐ ampliado |
+| Autenticação | Base educacional | JWT + roles | ⭐ ampliado |
+| DTOs | Limitado | contracts separados | ⭐ ampliado |
+| Paginação/filtros | Não | Sim | ⭐ ampliado |
+| Testes | Base simples | 65 unit/integration | ⭐ ampliado |
+| Docker | Não | build verificado no CI | ⭐ ampliado |
+| CI | Não | quality gate completo | ⭐ ampliado |
+| Documentação | Mínima | README + docs + requests | ⭐ ampliado |
 
-```bash
-# 1. Clonar e verificar build
-git clone https://github.com/matheusflorindo32/dio-minimal-api.git
-cd dio-minimal-api
-dotnet restore
-dotnet build
+**Aderência estimada ao desafio DIO após CI/merge:** 100%.
 
-# 2. Rodar todos os testes
-dotnet test
+## Premium Elite Score
 
-# 3. Verificar localmente
-dotnet run --project src/BookStore.Api
-# Acessar http://localhost:5000/swagger
+Score ponderado, sem tentar forçar 100:
 
-# 4. Testar com Docker
-docker compose up --build
-# Acessar http://localhost:8080/swagger
+| Área | Peso | Pontos |
+|---|---:|---:|
+| Funcionalidade | 15 | 14.5 |
+| Aderência DIO | 15 | 15.0 |
+| Testes | 12 | 11.5 |
+| Segurança | 12 | 10.5 |
+| Qualidade C#/.NET | 10 | 9.2 |
+| REST/API Design | 8 | 7.5 |
+| Arquitetura | 7 | 6.5 |
+| CI/CD | 6 | 6.0 |
+| Docker/DX | 5 | 4.8 |
+| Documentação | 5 | 4.8 |
+| Git/GitHub | 3 | 2.7 |
+| Portfólio | 2 | 2.0 |
+| **Total** | **100** | **95.0** |
 
-# 5. Verificar CI
-# Push para GitHub e confirmar que Actions passam
-```
+### Classificação
 
-### O que dizer em entrevista sobre este projeto:
+**95/100 — PREMIUM ELITE**, condicionado ao merge sem alteração funcional e CI verde na `main`.
 
-1. "Não copiei o projeto DIO — reconstruí do zero demonstrando cada melhoria."
-2. "Senhas nunca são armazenadas em texto puro. Uso HMACSHA256 com salt aleatório, e documentei por que não usei BCrypt neste contexto."
-3. "Cada decisão arquitetural tem justificativa documentada — inclusive as decisões de NÃO usar certas tecnologias."
-4. "Tenho 61 testes automatizados cobrindo cenários positivos e negativos, incluindo testes de autorização por role."
-5. "O projeto roda com `dotnet run` sem instalar banco de dados externo — SQLite como escolha deliberada para portfólio."
+Não recebe 100/100 porque continuam conscientemente fora do escopo:
 
----
+- password hashing não usa KDF lenta dedicada;
+- CORS é permissivo para demonstração;
+- não há rate limiting;
+- não há deployment production-grade/HTTPS/secret manager;
+- não há necessidade de adicionar infraestrutura enterprise a um desafio educacional.
+
+## Hard Gates
+
+| Gate | Estado antes do merge |
+|---|---|
+| P0 aberto | 0 |
+| P1 blocker conhecido | 0 |
+| Build | PASS |
+| Unit tests | PASS |
+| Integration tests | PASS |
+| High/Critical security blocker conhecido | 0 |
+| NuGet vulnerable package check | PASS |
+| Docker Compose config | PASS |
+| Docker image build | PASS |
+| README/API contract alinhados | PASS por revisão |
+
+## Decisão pré-merge
+
+### 🟢 GO PARA MERGE
+
+Após o merge, exigir um GitHub Actions verde na `main` antes de enviar o link à DIO.
+
+## Como explicar o projeto em 30 segundos
+
+> Reconstruí o desafio de Minimal API da DIO como uma BookStore API em .NET 8. Além do CRUD, implementei EF Core com SQLite, JWT e autorização por roles, DTOs, paginação e filtros, 65 testes unitários e de integração, Docker e um CI que realmente compila, testa, verifica dependências e constrói a imagem. A auditoria final também encontrou e corrigiu uma falha real de elevação de privilégio no cadastro público, então o projeto passou por validação baseada em evidências, não apenas por revisão do README.
 
 ## Declaração de Integridade
 
-- Nenhum resultado de build foi inventado
-- Nenhum resultado de teste foi inventado
-- Nenhuma métrica de coverage foi fabricada
-- Os 4 itens marcados "NÃO VERIFICADO" requerem execução local pelo autor
-- Todas as limitações de segurança estão documentadas
-- O código é autoral — não é cópia do projeto de referência DIO
+- nenhum resultado de build/teste foi inventado;
+- nenhuma cobertura percentual foi fabricada;
+- a baseline quebrada foi registrada como NO-GO;
+- o finding de segurança foi documentado, não ocultado;
+- limitações de produção são declaradas explicitamente;
+- complexidade sem valor para o desafio foi rejeitada.
