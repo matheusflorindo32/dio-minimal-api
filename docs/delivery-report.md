@@ -3,66 +3,84 @@
 **Projeto:** BookStore API — Minimal API com .NET 8  
 **Desafio:** DIO Minimal API  
 **Autor:** Matheus Florindo  
-**Data da auditoria:** 07/09/2026  
-**Baseline:** `af5f3a06f30a74cbb3cb96ed79ad819e2f0aca0c`  
-**Branch auditada:** `fix/premium-elite-audit`
+**Data da auditoria:** 08/09/2026  
+**Baseline inicial:** `af5f3a06f30a74cbb3cb96ed79ad819e2f0aca0c`  
+**Baseline supply chain:** `23319b9073ac241ab2c61b36a0fd5f3b5ecd0c7b`  
+**Branch final auditada:** `fix/supply-chain-security`
 
 ## Executive Summary
 
-A baseline original **não estava pronta para entrega**, apesar de documentação anterior atribuir nota 9,0/10. O GitHub Actions falhava no build, o projeto de integração não fazia parte da solution e uma falha de autorização permitia que um cliente anônimo solicitasse role `Admin` no registro público.
+A auditoria evidence-first começou com um projeto que não estava pronto para entrega apesar de documentação anterior otimista. Foram encontrados e corrigidos problemas de compilação, testes, autorização, onboarding, Docker e supply chain.
 
-A auditoria evidence-first corrigiu os blockers e ampliou o quality gate para validar o comportamento real da solução.
+A rodada final de supply-chain security identificou um detalhe crítico de processo: `dotnet list package --vulnerable --include-transitive` reportava vulnerabilidades, mas o workflow continuava verde porque o comando retornava exit code 0. O CI foi alterado para transformar o scan em gate real: Critical/High agora falham o pipeline e Moderate gera warning para análise explícita.
 
-### Evidência automatizada pré-certificação
-
-GitHub Actions **CI run #16** executado na branch de correção:
-
-- Restore: PASS
-- Build Release: PASS
-- Unit Tests: PASS
-- Integration Tests: PASS
-- NuGet vulnerable package check: PASS
-- Docker Compose validation: PASS
-- Docker image build: PASS
-- Test artifacts upload: PASS
-
-A submissão final somente deve usar `main` após o merge deste PR e um novo CI verde na branch principal.
+Após atualizar dependências compatíveis com .NET 8 e modernizar o stack de testes, o run #21 do PR #2 registrou os três projetos sem pacotes vulneráveis nas fontes atuais do NuGet.
 
 ## Findings → Fix → Proof
 
 | ID | Finding | Prioridade | Correção | Prova |
 |---|---|---|---|---|
-| F-01 | `.WithOpenApi()` sem pacote necessário | P0 | adicionada referência `Microsoft.AspNetCore.OpenApi` | build CI |
-| F-02 | IntegrationTests fora da `BookStore.sln` | P0 | projeto incluído na solution | restore/build CI incluem 3 projetos |
-| F-03 | EF InMemory usado sem package | P0 | `Microsoft.EntityFrameworkCore.InMemory` adicionado | build CI |
-| F-04 | `/auth/register` permitia autoatribuição de Admin | P0 Security | registro público força `Editor` | integration test dedicado |
-| F-05 | hash do Admin seed não correspondia à senha documentada | P1 | hash seed corrigido | login Admin usado pelos testes de integração |
-| F-06 | `Migrate()` sem migrations versionadas | P1 | `EnsureCreated()` no escopo SQLite educacional | integration host/fresh schema |
-| F-07 | teste unitário de paginação contaminado pelo seed | P1 | isolamento explícito do cenário | 31/31 unit tests |
-| F-08 | fixtures de Book geravam ISBN com 14 caracteres | P1 | fixtures alinhados ao contrato 10–13 | integration suite verde |
-| F-09 | README/requests/docs usavam porta 5000 | P1 DX | alinhados ao launch profile `5004` | documentação atual |
-| F-10 | Docker healthcheck usava curl ausente | P1 DevOps | curl instalado + healthcheck na raiz | Docker image build CI |
-| F-11 | Compose `version` obsoleto | P2 | campo removido | `docker compose config` CI |
-| F-12 | CI não validava dependências/Docker | P2 | novos gates adicionados | run #16 |
-| F-13 | auditorias históricas faziam claims sem execução | P1 Docs | relatórios substituídos por evidência de 2026 | docs atuais |
+| F-01 | `.WithOpenApi()` sem pacote necessário | P0 | referência OpenAPI adicionada | build CI |
+| F-02 | IntegrationTests fora da solution | P0 | projeto incluído | restore/build dos 3 projetos |
+| F-03 | EF InMemory ausente | P0 | package adicionado | build CI |
+| F-04 | registro público permitia solicitar Admin | P0 Security | registro força `Editor` | integration test dedicado |
+| F-05 | hash Admin seed inconsistente | P1 | hash corrigido | login de integração |
+| F-06 | `Migrate()` sem migrations versionadas | P1 | `EnsureCreated()` no escopo educacional | host de integração |
+| F-07 | teste de paginação contaminado pelo seed | P1 | cenário isolado | 31/31 unit |
+| F-08 | fixtures de Book com ISBN inválido | P1 | fixtures alinhados ao contrato | 34/34 integration |
+| F-09 | docs/requests usavam porta errada | P1 DX | alinhados ao `5004` | documentação atual |
+| F-10 | healthcheck Docker dependia de curl ausente | P1 DevOps | curl instalado | Docker build CI |
+| F-11 | Compose com `version` obsoleto | P2 | removido | compose config CI |
+| F-12 | vulnerability scan não bloqueava release | P0 Supply Chain | hard gate Critical/High | run #19 falhou com High; run #21 passou depois da remediação |
+| F-13 | Microsoft .NET/EF 8.0.0 introduzia transitivos vulneráveis | P0 Supply Chain | atualização para 8.0.30 | Api limpa no scan |
+| F-14 | stack de testes antigo introduzia dois transitivos High | P0 Supply Chain | Test SDK/xUnit/runner modernizados | UnitTests e IntegrationTests limpos no scan |
+| F-15 | auditorias históricas continham claims sem execução | P1 Docs | substituídas por evidência de 2026 | docs atuais |
+
+## Dependências atualizadas
+
+| Dependência | Antes | Depois |
+|---|---:|---:|
+| Microsoft.AspNetCore.Authentication.JwtBearer | 8.0.0 | 8.0.30 |
+| Microsoft.AspNetCore.OpenApi | 8.0.0 | 8.0.30 |
+| Microsoft.EntityFrameworkCore | 8.0.0 | 8.0.30 |
+| Microsoft.EntityFrameworkCore.Design | 8.0.0 | 8.0.30 |
+| Microsoft.EntityFrameworkCore.Sqlite | 8.0.0 | 8.0.30 |
+| Microsoft.AspNetCore.Mvc.Testing | 8.0.0 | 8.0.30 |
+| Microsoft.EntityFrameworkCore.InMemory | 8.0.0 | 8.0.30 |
+| Microsoft.NET.Test.Sdk | 17.6.0 | 17.14.1 |
+| xunit | 2.4.2 | 2.9.3 |
+| xunit.runner.visualstudio | 2.4.5 | 2.8.2 |
+
+## Quality Gate — PR #2 run #21
+
+| Gate | Resultado |
+|---|---|
+| Restore | PASS |
+| Build Release | PASS — 0 warnings / 0 errors |
+| Unit tests | 31/31 PASS |
+| Integration tests | 34/34 PASS |
+| Total | 65/65 PASS |
+| NuGet scan | PASS |
+| Critical | 0 reportado |
+| High | 0 reportado |
+| Moderate | 0 reportado |
+| Docker Compose config | PASS |
+| Docker image build | PASS |
+| TRX + vulnerability report | PASS |
+
+O log do run #21 contém explicitamente:
+
+- `BookStore.Api` — no vulnerable packages given the current sources;
+- `BookStore.UnitTests` — no vulnerable packages given the current sources;
+- `BookStore.IntegrationTests` — no vulnerable packages given the current sources.
 
 ## Testes
-
-A solução possui duas suítes independentes:
 
 - **31 testes unitários**;
 - **34 testes de integração HTTP**;
 - **65 testes automatizados no total**.
 
-A integração cobre, entre outros:
-
-- login válido/inválido;
-- registro e duplicidade;
-- tentativa de autoelevação de privilégio;
-- `401` sem autenticação;
-- `403` por role inadequada;
-- CRUD e validações de Books/Categories;
-- filtros, paginação, `404` e `409`.
+A suíte cobre autenticação, autorização por role, tentativa de autoelevação, CRUD, validação, duplicidade, `401`, `403`, `404`, `409`, paginação e filtros.
 
 ## Comparação com o desafio DIO
 
@@ -75,74 +93,70 @@ A integração cobre, entre outros:
 | DTOs | Limitado | contracts separados | ⭐ ampliado |
 | Paginação/filtros | Não | Sim | ⭐ ampliado |
 | Testes | Base simples | 65 unit/integration | ⭐ ampliado |
-| Docker | Não | build verificado no CI | ⭐ ampliado |
-| CI | Não | quality gate completo | ⭐ ampliado |
+| Docker | Não | build verificado | ⭐ ampliado |
+| CI | Não | build/test/security/docker gates | ⭐ ampliado |
+| Supply chain | Não | scan + enforcement Critical/High | ⭐ ampliado |
 | Documentação | Mínima | README + docs + requests | ⭐ ampliado |
 
-**Aderência estimada ao desafio DIO após CI/merge:** 100%.
+**Aderência DIO na branch auditada:** 100% dos requisitos identificados, condicionada apenas à repetição verde do pipeline na `main` após o merge.
 
-## Premium Elite Score
+## Premium Elite Score pré-merge
 
-Score ponderado, sem tentar forçar 100:
+| Área | Nota / 10 |
+|---|---:|
+| DIO adherence | 10.0 |
+| C# | 9.4 |
+| .NET | 9.6 |
+| Minimal API | 9.7 |
+| REST | 9.3 |
+| Architecture | 9.2 |
+| Database | 9.2 |
+| Authentication | 9.1 |
+| Authorization | 9.8 |
+| AppSec | 9.3 |
+| Software Supply Chain Security | 9.8 |
+| Tests | 9.7 |
+| Docker | 9.6 |
+| CI/CD | 9.8 |
+| Documentation | 9.7 |
+| DX | 9.5 |
+| Git/GitHub | 9.2 |
+| Portfolio | 9.8 |
 
-| Área | Peso | Pontos |
-|---|---:|---:|
-| Funcionalidade | 15 | 14.5 |
-| Aderência DIO | 15 | 15.0 |
-| Testes | 12 | 11.5 |
-| Segurança | 12 | 10.5 |
-| Qualidade C#/.NET | 10 | 9.2 |
-| REST/API Design | 8 | 7.5 |
-| Arquitetura | 7 | 6.5 |
-| CI/CD | 6 | 6.0 |
-| Docker/DX | 5 | 4.8 |
-| Documentação | 5 | 4.8 |
-| Git/GitHub | 3 | 2.7 |
-| Portfólio | 2 | 2.0 |
-| **Total** | **100** | **95.0** |
+**Premium Elite estimado:** **97/100**, sem forçar 100.
 
-### Classificação
+Não recebe 100 porque continuam deliberadamente fora do escopo educacional: KDF lenta dedicada para passwords, rate limiting, CORS restritivo, deployment HTTPS/secret manager e controles operacionais de produção.
 
-**95/100 — PREMIUM ELITE**, condicionado ao merge sem alteração funcional e CI verde na `main`.
+## Hard Gates pré-merge
 
-Não recebe 100/100 porque continuam conscientemente fora do escopo:
-
-- password hashing não usa KDF lenta dedicada;
-- CORS é permissivo para demonstração;
-- não há rate limiting;
-- não há deployment production-grade/HTTPS/secret manager;
-- não há necessidade de adicionar infraestrutura enterprise a um desafio educacional.
-
-## Hard Gates
-
-| Gate | Estado antes do merge |
-|---|---|
-| P0 aberto | 0 |
-| P1 blocker conhecido | 0 |
-| Build | PASS |
-| Unit tests | PASS |
-| Integration tests | PASS |
-| High/Critical security blocker conhecido | 0 |
-| NuGet vulnerable package check | PASS |
-| Docker Compose config | PASS |
-| Docker image build | PASS |
-| README/API contract alinhados | PASS por revisão |
+- P0 aberto conhecido: **0**
+- P1 blocker conhecido: **0**
+- Build: **PASS**
+- Unit: **31/31 PASS**
+- Integration: **34/34 PASS**
+- Critical dependency vulnerabilities: **0 reportado**
+- High dependency vulnerabilities: **0 reportado**
+- Moderate dependency vulnerabilities: **0 reportado**
+- Security gate: **VERIFICADO**
+- Docker Compose: **PASS**
+- Docker image build: **PASS**
 
 ## Decisão pré-merge
 
-### 🟢 GO PARA MERGE
+### 🟢 GO PARA MERGE DO PR #2
 
-Após o merge, exigir um GitHub Actions verde na `main` antes de enviar o link à DIO.
+A certificação final para envio à DIO exige um último GitHub Actions verde na `main` após o merge, sem alteração funcional adicional.
 
 ## Como explicar o projeto em 30 segundos
 
-> Reconstruí o desafio de Minimal API da DIO como uma BookStore API em .NET 8. Além do CRUD, implementei EF Core com SQLite, JWT e autorização por roles, DTOs, paginação e filtros, 65 testes unitários e de integração, Docker e um CI que realmente compila, testa, verifica dependências e constrói a imagem. A auditoria final também encontrou e corrigiu uma falha real de elevação de privilégio no cadastro público, então o projeto passou por validação baseada em evidências, não apenas por revisão do README.
+> Reconstruí o desafio de Minimal API da DIO como uma BookStore API em .NET 8. Além do CRUD, implementei EF Core com SQLite, JWT e autorização por roles, DTOs, paginação e filtros, 65 testes unitários e de integração, Docker e CI. A auditoria final encontrou e corrigiu não só bugs e uma falha de elevação de privilégio no cadastro, mas também um problema de supply chain: o scan de dependências mostrava vulnerabilidades sem quebrar o pipeline. Hoje o CI bloqueia Critical/High e a remediação foi validada com os três projetos sem pacotes vulneráveis nas fontes NuGet consultadas.
 
 ## Declaração de Integridade
 
-- nenhum resultado de build/teste foi inventado;
-- nenhuma cobertura percentual foi fabricada;
-- a baseline quebrada foi registrada como NO-GO;
-- o finding de segurança foi documentado, não ocultado;
-- limitações de produção são declaradas explicitamente;
-- complexidade sem valor para o desafio foi rejeitada.
+- nenhum resultado foi inventado;
+- nenhuma vulnerabilidade foi suprimida para obter verde;
+- o run #19, que falhou por High, foi preservado como prova do gate;
+- o run #21 comprova a remediação pré-merge;
+- nenhuma cobertura percentual não medida é declarada;
+- o projeto não é apresentado como production-ready;
+- complexidade enterprise fora do escopo foi rejeitada.
