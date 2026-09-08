@@ -1,142 +1,75 @@
-# Auditoria Cega — 3 Revisores Independentes
+# Auditoria independente — status baseado em evidências
 
-Cada revisor examinou o código-fonte completo sem conhecer os resultados dos outros.
+**Data:** 07/09/2026  
+**Baseline auditada:** `af5f3a06f30a74cbb3cb96ed79ad819e2f0aca0c`  
+**Branch de correção:** `fix/premium-elite-audit`
 
----
+> Este documento substitui a auditoria anterior que atribuía nota 9,0/10 sem conseguir executar o build. A certificação atual só considera evidência produzida por código, testes e GitHub Actions.
 
-## Revisor 1 — Arquitetura e Design de API
+## Achados confirmados na baseline
 
-**Foco:** Estrutura do projeto, padrões de API, organização de código, decisões arquiteturais.
-
-### Pontos Fortes
-
-1. **Hosting model correto.** Usa `WebApplication.CreateBuilder` com top-level statements — o verdadeiro Minimal API pattern do .NET 6+, ao contrário do projeto DIO que usa o hosting model antigo.
-
-2. **Separação de responsabilidades bem executada.** Domain (Entities, DTOs, Services, Interfaces) / Infrastructure (Data) / Endpoints. Sem camadas desnecessárias — sem Repository Pattern sobre EF Core, sem AutoMapper, sem FluentValidation. Cada decisão de "não usar" é justificada.
-
-3. **DTOs como records.** Contratos explícitos para cada operação (Create, Update, Response). Imutáveis, concisos, com positional syntax. Evita over-posting e vazamento de dados internos.
-
-4. **Paginação genérica.** `PagedResponse<T>` com metadata completa. `Math.Clamp(pageSize, 1, 50)` previne requisições abusivas. Ausência de paginação no projeto DIO era falha grave.
-
-5. **Problem Details para erros.** `ValidationError` segue RFC 9110, com `type`, `title`, `status`, `detail`, `instance` e `errors`. Profissional e consistente.
-
-6. **Route groups com extension methods.** `MapAuthEndpoints()`, `MapBookEndpoints()`, etc. Organizado sem controllers, legível e extensível.
-
-### Pontos de Atenção
-
-1. **Swagger exposto em todos os ambientes.** `app.UseSwagger()` e `app.UseSwaggerUI()` rodam independente do environment. Em produção, deveria ser condicional a `app.Environment.IsDevelopment()`. *Severidade: Baixa — aceitável para projeto educacional.*
-
-2. **`db.Database.Migrate()` na startup.** Auto-migração é prática para dev mas arriscada em produção com múltiplas instâncias. *Severidade: Informativa — correto para SQLite monolítico.*
-
-3. **`UserEndpoints.GetAll` não usa `PagedResponse<T>`.** Retorna lista simples diferente do padrão de Books. Inconsistência menor. *Severidade: Baixa.*
-
-### Nota: 9.0/10
-
----
-
-## Revisor 2 — Segurança e Autenticação
-
-**Foco:** Hashing de senhas, JWT, autorização, validação, proteção de dados.
-
-### Pontos Fortes
-
-1. **Password hashing com salt aleatório.** HMACSHA256 com 16 bytes de salt via `RandomNumberGenerator.GetBytes()` (CSPRNG). Formato `salt.hash` em Base64. Limitação de não ser KDF lento é declarada — atitude profissional.
-
-2. **JWT com validação completa.** Quatro parâmetros de validação ativos: Issuer, Audience, Lifetime, IssuerSigningKey. Chave simétrica com comprimento adequado (≥32 chars). Lança exceção se não configurada.
-
-3. **Login não enumera usuários.** Retorna `401 Unauthorized` genérico tanto para email inexistente quanto para senha errada. Não revela se o email está cadastrado.
-
-4. **PasswordHash nunca aparece em resposta.** `UserResponse` e `LoginResponse` não incluem o campo. DTOs projetados para excluir dados sensíveis.
-
-5. **Autorização por role aplicada corretamente.** Cada endpoint tem o nível de acesso correto: Admin para operações destrutivas, Admin+Editor para criação de livro, autenticação para leitura. Diferente do projeto DIO que tinha roles sem enforcement.
-
-6. **Unique constraints no DB + verificação no endpoint.** Dupla proteção: o banco impede duplicatas, e o endpoint retorna erro amigável antes de chegar ao banco.
-
-7. **DeleteBehavior.Restrict + verificação explícita.** Categoria com livros não pode ser deletada, verificado tanto no código (HasBooks) quanto no schema (Restrict).
-
-8. **Sem secrets no repositório.** `.gitignore` exclui `.env`. Chave JWT marcada "CHANGE-THIS-KEY-IN-PRODUCTION". `.env.example` com placeholders. Docker usa variável de ambiente.
-
-### Pontos de Atenção
-
-1. **HMACSHA256 não é KDF lento.** Vulnerável a brute-force em alta escala. Mitigação: documentado, código isolado para troca. *Severidade: Média — aceitável com declaração explícita.*
-
-2. **Sem rate limiting.** Endpoints de login/register sem proteção contra brute-force automatizado. *Severidade: Média — fora do escopo educacional.*
-
-3. **CORS com `AllowAnyOrigin`.** Aberto para qualquer domínio. Aceitável para dev, não para produção. *Severidade: Média — documentado.*
-
-4. **Validação de email simplificada.** Verifica apenas `@` e `.`, aceita formatos inválidos como `a@b.`. Regex ou `MailAddress.TryCreate` seriam mais robustos. *Severidade: Baixa.*
-
-### Nota: 9.2/10
-
----
-
-## Revisor 3 — Testes, CI/CD e Operações
-
-**Foco:** Cobertura de testes, qualidade da CI, Docker, operacionalidade.
-
-### Pontos Fortes
-
-1. **Testes unitários com isolamento real.** InMemory DB com GUID único por teste. Cada teste roda contra banco limpo — sem interferência entre testes.
-
-2. **Testes de integração com WebApplicationFactory.** Exercita o pipeline completo: middleware, auth, routing, model binding, serialização JSON. HttpClient autenticado via `AuthHelper` que registra usuário, faz login e configura Bearer token.
-
-3. **Cobertura funcional abrangente.** 29 testes unitários + 32 testes de integração = 61 testes total. Cobre cenários positivos e negativos: criação válida, duplicatas, campos vazios, autorização, 401, 403, 404.
-
-4. **Testes de autorização por role.** Verifica que Editor recebe 403 em operações de Admin, e que requests sem token recebem 401. Diferente do projeto DIO com 1 teste.
-
-5. **Docker multi-stage correto.** SDK apenas no build, aspnet no runtime. Non-root user. Volume para dados SQLite. Healthcheck configurado.
-
-6. **CI com GitHub Actions.** Restore → Build → Unit Tests → Integration Tests. Upload de artifacts. Roda em push/PR para main/develop.
-
-7. **Boa separação de configuração.** `appsettings.json` (base), `appsettings.Development.json` (dev-only), env vars para Docker. Padrão correto de layered configuration.
-
-### Pontos de Atenção
-
-1. **Sem code coverage no CI.** O pipeline roda testes mas não gera relatório de cobertura. Adicionar `--collect:"XPlat Code Coverage"` + Coverlet seria melhoria. *Severidade: Baixa.*
-
-2. **Healthcheck usa curl que pode não estar na imagem.** `mcr.microsoft.com/dotnet/aspnet:8.0` pode não ter `curl` instalado. Alternativa: healthcheck endpoint ou `wget`. *Severidade: Baixa — pode falhar silenciosamente.*
-
-3. **`docker-compose.yml` com `version: '3.8'`.** O campo `version` está deprecated no Docker Compose V2+. Funciona, mas gera warning. *Severidade: Informativa.*
-
-4. **Build NÃO foi executado neste ambiente.** O proxy de rede bloqueou NuGet. O código foi revisado estruturalmente mas não compilado. *Severidade: Informativa — deve ser validado localmente pelo autor.*
-
-### Nota: 8.8/10
-
----
-
-## Consolidação
-
-| Critério | Rev.1 | Rev.2 | Rev.3 | Média |
+| ID | Achado | Prioridade | Evidência/impacto | Estado |
 |---|---|---|---|---|
-| Nota | 9.0 | 9.2 | 8.8 | **9.0/10** |
+| A-01 | Build quebrado por uso de `.WithOpenApi()` sem pacote correspondente | P0 | CI da `main` falhava com 14 erros CS1061 | corrigido na branch |
+| A-02 | Projeto de integração fora da solution | P0 | restore/build da solution não compilava a suíte de integração | corrigido |
+| A-03 | IntegrationTests usava EF InMemory sem o pacote | P0 | compilação falhava assim que o projeto passou a entrar na solution | corrigido |
+| A-04 | Teste de paginação dependia do seed e esperava contagem incorreta | P1 | 30/31 testes unitários passavam | corrigido com isolamento |
+| A-05 | Registro público permitia solicitar `Admin` | P0 Segurança | elevação de privilégio anônima | corrigido + teste de integração |
+| A-06 | Credencial Admin documentada não correspondia ao hash seed | P1 | login de demonstração inconsistente | corrigido |
+| A-07 | Startup chamava `Migrate()` sem migrations versionadas | P1 | fresh clone poderia não inicializar o schema como documentado | corrigido com `EnsureCreated()` para este escopo educacional |
+| A-08 | README/requests usavam porta 5000 enquanto launch profile usa 5004 | P1 DX | onboarding incorreto | corrigido |
+| A-09 | Healthcheck Docker dependia de `curl` ausente | P1 DevOps | container poderia ficar unhealthy | corrigido |
+| A-10 | Compose usava campo `version` obsoleto | P2 | warning e ruído operacional | corrigido |
 
-### Achados Consolidados (sem duplicatas)
+## Revisão Backend
 
-**Aprovações unânimes:**
-- Hashing de senhas com salt aleatório CSPRNG
-- JWT com validação completa de 4 parâmetros
-- DTOs protegem dados internos (PasswordHash nunca exposto)
-- Autorização por role aplicada e testada
-- Unique constraints + verificação dupla (DB + endpoint)
-- Integridade referencial com Restrict + HasBooks
-- Sem secrets no repositório
-- Docker com non-root user e multi-stage
-- 61 testes cobrindo cenários positivos e negativos
+Pontos positivos mantidos:
 
-**Melhorias recomendadas (nenhuma é bloqueante):**
+- Minimal APIs organizadas em route groups;
+- DTOs separados das entidades;
+- EF Core com constraints e relacionamento Book → Category;
+- paginação e filtros;
+- sem camadas artificiais somente para aumentar complexidade.
 
-| # | Achado | Severidade | Bloqueante |
-|---|---|---|---|
-| 1 | HMACSHA256 → BCrypt/Argon2 para produção | Média | Não |
-| 2 | Rate limiting em login/register | Média | Não |
-| 3 | Restringir CORS para domínios específicos | Média | Não |
-| 4 | Condicionar Swagger a `IsDevelopment()` | Baixa | Não |
-| 5 | Coverage report no CI | Baixa | Não |
-| 6 | Healthcheck sem depender de curl | Baixa | Não |
-| 7 | Paginação consistente em UserEndpoints | Baixa | Não |
-| 8 | Validação de email mais robusta | Baixa | Não |
-| 9 | Remover `version` deprecated do docker-compose | Informativa | Não |
+Pontos residuais não bloqueantes:
 
-### Veredicto Final da Auditoria
+- `UserService` usa HMACSHA256 com salt, não uma KDF lenta específica para armazenamento de senha;
+- a solução é propositalmente monolítica e educacional.
 
-**APROVADO** — O projeto demonstra competência profissional em todas as áreas avaliadas. As 9 melhorias identificadas são incrementais e nenhuma representa vulnerabilidade explorável no contexto educacional. A documentação de limitações conhecidas é um diferencial positivo.
+## Revisão Security / Red Team
+
+O principal blocker encontrado foi a possibilidade de autoatribuição de `Admin` pelo endpoint público de registro. A correção força qualquer registro público para `Editor` e existe teste de integração que envia `role=0` e exige retorno `Editor`.
+
+Limitações assumidas e documentadas:
+
+- sem rate limiting;
+- CORS permissivo para facilitar execução educacional;
+- Swagger disponível no ambiente do exercício;
+- estratégia de senha não é apresentada como production-grade.
+
+Esses itens ficam fora do escopo obrigatório do desafio e não justificam adicionar infraestrutura desproporcional.
+
+## Revisão QA
+
+O processo de auditoria mostrou por que quantidade de arquivos de teste não é suficiente: na baseline, IntegrationTests existia mas não era compilado pela solution. Após corrigir isso, o CI passou a revelar problemas reais nos fixtures e no contrato.
+
+Critério final: somente considerar a suíte aprovada quando GitHub Actions registrar build + unit tests + integration tests com sucesso no mesmo SHA.
+
+## Revisão DevOps
+
+O quality gate foi ampliado para verificar:
+
+1. restore;
+2. build Release;
+3. unit tests;
+4. integration tests;
+5. pacotes NuGet vulneráveis;
+6. `docker compose config`;
+7. `docker build`;
+8. artifacts `.trx`.
+
+## Veredicto
+
+A baseline `af5f3a06...` é **NO-GO** e a antiga nota 9,0/10 não deve ser usada como certificação.
+
+O veredicto final da branch corrigida deve ser lido em `docs/delivery-report.md` e depende do resultado real do GitHub Actions para o SHA final.

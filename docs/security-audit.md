@@ -1,103 +1,81 @@
 # Auditoria de Segurança — BookStore API
 
-**Data:** 2024-01-15  
-**Auditor:** Revisão automatizada de código  
-**Escopo:** Código-fonte completo, configuração, Docker, CI  
+**Data:** 07/09/2026  
+**Baseline:** `af5f3a06f30a74cbb3cb96ed79ad819e2f0aca0c`  
+**Escopo:** autenticação, autorização, entrada, dados, configuração, Docker e CI
 
----
+## Resumo executivo
 
-## 1. Checklist de Segurança
+A auditoria atual substitui o relatório anterior que declarava 31/31 controles aprovados. A revisão Red Team encontrou uma falha real de autorização na baseline: o registro público aceitava a role enviada pelo cliente, permitindo autoatribuição de `Admin`.
 
-### 1.1 Autenticação e Senhas
+Essa falha foi corrigida e recebeu teste de integração específico. Portanto, a segurança final é avaliada pelo comportamento corrigido, e não pela antiga declaração de “100%”.
 
-| Item | Status | Evidência |
+## Finding principal
+
+| ID | Severidade | Finding | Correção | Prova |
+|---|---|---|---|---|
+| SEC-01 | Alta / P0 no escopo | `/auth/register` confiava em `request.Role`; cliente anônimo podia pedir `Admin` | registro público força `Editor` | teste `Register_RequestingAdmin_Returns201AsEditorWithToken` |
+
+## Controles verificados no código
+
+### Autenticação
+
+- senhas não são persistidas em texto puro;
+- salt aleatório gerado com `RandomNumberGenerator`;
+- login retorna `401` genérico para credencial inválida;
+- JWT valida issuer, audience, lifetime e signing key;
+- token inclui role usada pelo authorization middleware;
+- `PasswordHash` não integra DTOs de resposta.
+
+### Autorização
+
+- `/auth/login` e `/auth/register` são públicos;
+- Books e Categories exigem autenticação no grupo;
+- criação de livro aceita `Admin,Editor`;
+- update/delete de livros exigem `Admin`;
+- CRUD administrativo de categorias exige `Admin`;
+- Users exige `Admin`;
+- registro público não pode criar Admin após SEC-01.
+
+### Entrada e integridade
+
+- IDs usam constraints `{id:int}`;
+- paginação limita `pageSize` a 50;
+- ISBN tem restrição 10–13 caracteres e unique index;
+- email e nome possuem validação básica;
+- Category.Name e User.Email possuem unique index;
+- Book → Category usa FK com `DeleteBehavior.Restrict`.
+
+### Infraestrutura
+
+- `.env` é ignorado;
+- `.env.example` contém apenas valores de exemplo;
+- container roda como usuário não-root;
+- Docker usa build multi-stage;
+- JWT do Compose pode ser sobrescrito por variável de ambiente;
+- CI usa `contents: read` e não precisa de credenciais de escrita;
+- CI executa verificação de pacotes NuGet vulneráveis e build Docker.
+
+## Limitações residuais declaradas
+
+| Limitação | Classificação | Decisão |
 |---|---|---|
-| Senha nunca armazenada em texto puro | ✅ PASS | `UserService.BCryptHash()` usa HMACSHA256 + salt 16 bytes |
-| Salt gerado com CSPRNG | ✅ PASS | `RandomNumberGenerator.GetBytes(16)` — API criptográfica segura |
-| Hash armazenado como salt.hash (não reversível) | ✅ PASS | Formato `base64(salt).base64(hash)` em `PasswordHash` |
-| Login não revela se email existe | ✅ PASS | Retorna `401 Unauthorized` genérico para email inexistente e senha errada |
-| JWT valida Issuer, Audience, Lifetime, SigningKey | ✅ PASS | Todos os 4 parâmetros de `TokenValidationParameters` são `true` |
-| JWT expira em tempo razoável | ✅ PASS | 8 horas (`DateTime.UtcNow.AddHours(8)`) |
-| Chave JWT não hardcoded para produção | ✅ PASS | Marcada como "CHANGE-THIS-KEY-IN-PRODUCTION", configurável via env var |
-| JWT Key lança exceção se não configurada | ✅ PASS | `?? throw new InvalidOperationException(...)` em `Program.cs` |
+| HMACSHA256 + salt não é KDF lenta dedicada a passwords | Média | aceitável apenas no escopo educacional; migrar para PBKDF2/BCrypt/Argon2 em produção |
+| CORS permissivo | Média | mantido para demonstração local; restringir por origem em produção |
+| Sem rate limiting em login/register | Média | roadmap; não necessário para cumprir o desafio |
+| Swagger disponível no ambiente de demonstração | Baixa | intencional para avaliação do projeto |
+| Sem refresh token | Baixa | fora do escopo |
+| Sem deployment HTTPS/HSTS | Baixa | projeto local/container, não apresentado como produção |
 
-### 1.2 Autorização
+## Secrets
 
-| Item | Status | Evidência |
-|---|---|---|
-| Endpoints protegidos por padrão | ✅ PASS | `RequireAuthorization()` no group de Books, Categories, Users |
-| Roles aplicadas corretamente | ✅ PASS | Admin para CRUD, Editor para criação de livro, conforme matriz |
-| Endpoints públicos explicitamente marcados | ✅ PASS | Apenas `/auth/login` e `/auth/register` com `.AllowAnonymous()` |
-| PasswordHash nunca exposto em resposta | ✅ PASS | DTOs `UserResponse` e `LoginResponse` não incluem hash |
+Nenhuma credencial de produção é necessária para executar o projeto. A conta `admin@bookstore.com / Admin@123` e a chave padrão de demonstração são explicitamente dados de **desenvolvimento**, não devem ser reutilizados em ambiente real.
 
-### 1.3 Validação de Entrada
+## Veredicto de segurança
 
-| Item | Status | Evidência |
-|---|---|---|
-| Validação de email (formato) | ✅ PASS | Verifica `@` e `.` em `ValidateCreateUser` |
-| Validação de senha (comprimento mínimo) | ✅ PASS | Mínimo 6 caracteres |
-| Validação de comprimento em todos os campos string | ✅ PASS | Title 200, Author 150, ISBN 10-13, Name 100, Category.Name 100, Description 500 |
-| Trim em campos antes de persistir | ✅ PASS | `.Trim()` em Title, Author, ISBN, Name, Description |
-| Validação de range numérico | ✅ PASS | Year 1450–futuro+1, Price ≥ 0, Stock ≥ 0 |
-| Route constraints em IDs | ✅ PASS | `{id:int}` em todos os endpoints com parâmetro ID |
-| Paginação com limites | ✅ PASS | `Math.Clamp(pageSize, 1, 50)` impede abuso |
+- **Baseline:** NO-GO devido a SEC-01.
+- **Branch corrigida:** SEC-01 corrigido e coberto por integração.
+- **Critical/High blockers abertos conhecidos:** 0 após a correção.
+- **Production-ready:** NÃO — e o projeto não faz essa alegação.
 
-### 1.4 Integridade de Dados
-
-| Item | Status | Evidência |
-|---|---|---|
-| Unique constraint em Email | ✅ PASS | `HasIndex(u => u.Email).IsUnique()` + verificação no endpoint |
-| Unique constraint em ISBN | ✅ PASS | `HasIndex(b => b.Isbn).IsUnique()` + verificação no endpoint |
-| Unique constraint em Category.Name | ✅ PASS | `HasIndex(c => c.Name).IsUnique()` + verificação no endpoint |
-| FK com DeleteBehavior.Restrict | ✅ PASS | Book → Category não permite cascade delete |
-| Verificação de livros antes de deletar categoria | ✅ PASS | `HasBooks(id)` antes de `Delete` no endpoint |
-| Verificação de ISBN duplicado em update | ✅ PASS | `IsbnExists(isbn, id)` com `excludeId` |
-| Verificação de nome duplicado em update de categoria | ✅ PASS | `NameExists(name, id)` com `excludeId` |
-
-### 1.5 Configuração e Infraestrutura
-
-| Item | Status | Evidência |
-|---|---|---|
-| Sem secrets no repositório | ✅ PASS | `.gitignore` exclui `.env`, apenas `.env.example` com placeholders |
-| Sem connection strings de produção | ✅ PASS | SQLite local, sem credenciais externas |
-| Docker com non-root user | ✅ PASS | `adduser appuser` + `USER appuser` no Dockerfile |
-| Multi-stage build (SDK fora de produção) | ✅ PASS | Stage `build` com SDK, stage `runtime` apenas com aspnet |
-| JWT Key via variável de ambiente no Docker | ✅ PASS | `Jwt__Key=${JWT_KEY:-...}` no docker-compose |
-| CI não expõe secrets | ✅ PASS | GitHub Actions sem secrets hardcoded |
-
-### 1.6 Erros e Informação
-
-| Item | Status | Evidência |
-|---|---|---|
-| Erros seguem Problem Details (RFC 9110) | ✅ PASS | `ValidationError.Create()` com type, title, status, detail, errors |
-| Erros não vazam stack traces | ✅ PASS | Mensagens genéricas nas respostas de erro |
-| 401 sem informação sobre qual campo falhou | ✅ PASS | Login retorna apenas `Results.Unauthorized()` |
-| 404 com mensagem genérica | ✅ PASS | "not found" sem dados internos |
-
----
-
-## 2. Limitações Declaradas
-
-| Limitação | Severidade | Mitigação | Ação para produção |
-|---|---|---|---|
-| HMACSHA256 não é KDF lento | Média | Salt aleatório + código isolado para troca | Migrar para BCrypt.Net-Next ou Argon2 |
-| CORS aberto (AllowAnyOrigin) | Média | Aceitável para dev/educacional | Restringir para domínios específicos |
-| Sem rate limiting | Média | Não aplicável em escopo educacional | Adicionar AspNetCoreRateLimit ou middleware |
-| Sem refresh tokens | Baixa | Token de 8h é razoável para demo | Implementar rotation de tokens |
-| Sem HTTPS forçado | Baixa | Escopo localhost/Docker | Adicionar HSTS e redirect |
-| Swagger exposto em produção | Baixa | Útil para demonstração | Condicionar a `IsDevelopment()` |
-| Sem logging estruturado | Baixa | Logging padrão do ASP.NET Core | Adicionar Serilog |
-
----
-
-## 3. Resultado da Auditoria
-
-**Total de itens verificados:** 31  
-**Aprovados:** 31 (100%)  
-**Limitações declaradas:** 7 (todas documentadas em `docs/security.md`)  
-**Vulnerabilidades críticas:** 0  
-**Vulnerabilidades altas:** 0  
-
-### Veredicto
-
-O projeto atende às expectativas de um projeto educacional/portfólio com práticas de segurança superiores ao projeto de referência DIO. Todas as limitações são conhecidas, documentadas e possuem caminho de migração claro. Nenhuma vulnerabilidade crítica foi encontrada.
+A aprovação global ainda depende do quality gate final do GitHub Actions para o SHA certificado.

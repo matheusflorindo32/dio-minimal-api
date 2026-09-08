@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -29,6 +32,15 @@ jobs:
 
       - name: Run integration tests
         run: dotnet test tests/BookStore.IntegrationTests --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=integration-results.trx"
+
+      - name: Check vulnerable NuGet packages
+        run: dotnet list package --vulnerable --include-transitive
+
+      - name: Validate Docker Compose
+        run: docker compose config --quiet
+
+      - name: Build Docker image
+        run: docker build -t bookstore-api:ci .
 
       - name: Upload test results
         uses: actions/upload-artifact@v4

@@ -5,33 +5,24 @@ using System.Text.Json;
 namespace BookStore.IntegrationTests.Helpers;
 
 /// <summary>
-/// Helper to register and authenticate a test user, then set the JWT token on the HttpClient.
+/// Helper to authenticate test clients with the roles supported by the API.
+/// Public registration always creates Editor users; Admin access uses the seeded development account.
 /// </summary>
 public static class AuthHelper
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
-
     public static async Task<HttpClient> AuthenticateAsAdminAsync(CustomWebApplicationFactory factory)
     {
         var client = factory.CreateClient();
 
-        // Register an admin user
-        var registerPayload = new
+        var loginResponse = await client.PostAsJsonAsync("/auth/login", new
         {
-            email = $"admin-{Guid.NewGuid():N}@test.com",
-            password = "TestPass123",
-            name = "Test Admin",
-            role = 0 // Admin
-        };
+            email = "admin@bookstore.com",
+            password = "Admin@123"
+        });
+        loginResponse.EnsureSuccessStatusCode();
 
-        var registerResponse = await client.PostAsJsonAsync("/auth/register", registerPayload);
-        registerResponse.EnsureSuccessStatusCode();
-
-        var json = await registerResponse.Content.ReadAsStringAsync();
-        var doc = JsonDocument.Parse(json);
+        var json = await loginResponse.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
         var token = doc.RootElement.GetProperty("token").GetString()!;
 
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -42,19 +33,17 @@ public static class AuthHelper
     {
         var client = factory.CreateClient();
 
-        var registerPayload = new
+        var registerResponse = await client.PostAsJsonAsync("/auth/register", new
         {
             email = $"editor-{Guid.NewGuid():N}@test.com",
             password = "TestPass123",
             name = "Test Editor",
-            role = 1 // Editor
-        };
-
-        var registerResponse = await client.PostAsJsonAsync("/auth/register", registerPayload);
+            role = 1
+        });
         registerResponse.EnsureSuccessStatusCode();
 
         var json = await registerResponse.Content.ReadAsStringAsync();
-        var doc = JsonDocument.Parse(json);
+        using var doc = JsonDocument.Parse(json);
         var token = doc.RootElement.GetProperty("token").GetString()!;
 
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);

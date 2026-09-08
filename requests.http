@@ -1,26 +1,26 @@
 ### BookStore API - HTTP Request Examples
-### Use with VS Code REST Client extension or JetBrains HTTP Client
+### VS Code REST Client / JetBrains HTTP Client
 
-@baseUrl = http://localhost:5000
-@token = {{login.response.body.token}}
+@baseUrl = http://localhost:5004
+@adminToken = {{adminLogin.response.body.token}}
+@editorToken = {{editorRegister.response.body.token}}
 
 ### ============================
 ### Authentication
 ### ============================
 
-### Register a new user (Admin)
-# @name register
-POST {{baseUrl}}/auth/register
+### Login with the seeded development Admin
+# @name adminLogin
+POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "email": "newadmin@bookstore.com",
-  "password": "Admin@123",
-  "name": "New Admin",
-  "role": 0
+  "email": "admin@bookstore.com",
+  "password": "Admin@123"
 }
 
-### Register a new user (Editor)
+### Public registration always creates an Editor
+# @name editorRegister
 POST {{baseUrl}}/auth/register
 Content-Type: application/json
 
@@ -28,79 +28,67 @@ Content-Type: application/json
   "email": "editor@bookstore.com",
   "password": "Editor@123",
   "name": "Editor User",
-  "role": 1
+  "role": 0
 }
 
-### Login
-# @name login
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-
-{
-  "email": "newadmin@bookstore.com",
-  "password": "Admin@123"
-}
+### The response above must report role = "Editor" even though role=0 (Admin) was requested.
 
 ### ============================
-### Categories (requires auth)
+### Categories
 ### ============================
 
-### List all categories
+### List categories as Admin
 GET {{baseUrl}}/categories
-Authorization: Bearer {{token}}
+Authorization: Bearer {{adminToken}}
 
 ### Get category by ID
 GET {{baseUrl}}/categories/1
-Authorization: Bearer {{token}}
+Authorization: Bearer {{adminToken}}
 
 ### Create category (Admin only)
 POST {{baseUrl}}/categories
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{adminToken}}
 
 {
   "name": "Philosophy",
   "description": "Philosophy and ethics books"
 }
 
-### Update category (Admin only)
-PUT {{baseUrl}}/categories/1
+### Editor cannot create category — expected 403
+POST {{baseUrl}}/categories
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{editorToken}}
 
 {
-  "name": "Fiction & Literature",
-  "description": "Novels, short stories, poetry, and literary works"
+  "name": "Unauthorized Category",
+  "description": "This request should be forbidden"
 }
 
-### Delete category (Admin only)
-DELETE {{baseUrl}}/categories/4
-Authorization: Bearer {{token}}
-
 ### ============================
-### Books (requires auth)
+### Books
 ### ============================
 
-### List all books (with pagination)
+### List books
 GET {{baseUrl}}/books?page=1&pageSize=10
-Authorization: Bearer {{token}}
+Authorization: Bearer {{adminToken}}
 
-### List books with title filter
+### Filter by title
 GET {{baseUrl}}/books?title=clean
-Authorization: Bearer {{token}}
+Authorization: Bearer {{adminToken}}
 
-### List books with author filter
+### Filter by author
 GET {{baseUrl}}/books?author=martin
-Authorization: Bearer {{token}}
+Authorization: Bearer {{adminToken}}
 
 ### Get book by ID
 GET {{baseUrl}}/books/1
-Authorization: Bearer {{token}}
+Authorization: Bearer {{adminToken}}
 
-### Create book (Admin or Editor)
+### Create book as Editor — allowed
 POST {{baseUrl}}/books
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{editorToken}}
 
 {
   "title": "Design Patterns",
@@ -115,7 +103,7 @@ Authorization: Bearer {{token}}
 ### Update book (Admin only)
 PUT {{baseUrl}}/books/1
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{adminToken}}
 
 {
   "title": "Clean Code: A Handbook of Agile Software Craftsmanship",
@@ -127,18 +115,13 @@ Authorization: Bearer {{token}}
   "categoryId": 2
 }
 
-### Delete book (Admin only)
-DELETE {{baseUrl}}/books/3
-Authorization: Bearer {{token}}
-
 ### ============================
-### Users (Admin only)
+### Users — Admin only
 ### ============================
 
-### List all users
 GET {{baseUrl}}/users
-Authorization: Bearer {{token}}
+Authorization: Bearer {{adminToken}}
 
-### Get user by ID
-GET {{baseUrl}}/users/1
-Authorization: Bearer {{token}}
+### Editor access — expected 403
+GET {{baseUrl}}/users
+Authorization: Bearer {{editorToken}}

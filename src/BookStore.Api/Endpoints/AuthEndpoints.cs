@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using BookStore.Api.Domain.DTOs;
+using BookStore.Api.Domain.Enums;
 using BookStore.Api.Domain.Interfaces;
 using Microsoft.IdentityModel.Tokens;
 
@@ -48,7 +49,10 @@ public static class AuthEndpoints
             if (userService.EmailExists(request.Email))
                 return Results.Conflict(new { message = "Email already registered." });
 
-            var user = userService.Create(request);
+            // Public registration must never grant administrative privileges.
+            // The seeded development admin is the only bootstrap Admin in this educational project.
+            var safeRequest = request with { Role = UserRole.Editor };
+            var user = userService.Create(safeRequest);
             var token = GenerateToken(user.Email, user.Name, user.Role, config);
 
             return Results.Created($"/users/{user.Id}",

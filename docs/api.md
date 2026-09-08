@@ -2,27 +2,38 @@
 
 ## Base URL
 
-- **Desenvolvimento:** `http://localhost:5000`
+- **Desenvolvimento (perfil HTTP):** `http://localhost:5004`
 - **Docker:** `http://localhost:8080`
 - **Swagger UI:** `{baseUrl}/swagger`
 
-## Autenticação
+## Autenticação e roles
 
-Todos os endpoints (exceto login e register) requerem um JWT token no header:
+Todos os endpoints, exceto `/auth/login` e `/auth/register`, requerem JWT Bearer:
 
-```
+```http
 Authorization: Bearer <token>
 ```
 
-O token é obtido via `/auth/login` ou `/auth/register`.
+Roles utilizadas:
 
-## Endpoints
+- `Admin`: operações administrativas, update/delete e gerenciamento de usuários/categorias;
+- `Editor`: leitura autenticada e criação de livros.
+
+### Regra de segurança do registro público
+
+`POST /auth/register` **sempre cria o usuário como `Editor`**. O valor de `role` recebido no contrato legado não é confiado para conceder privilégio. Isso impede que um cliente anônimo se cadastre como `Admin`.
+
+Para demonstrar operações administrativas em desenvolvimento, utilize a conta seed:
+
+- email: `admin@bookstore.com`
+- senha: `Admin@123`
+
+## Authentication
 
 ### POST /auth/register
 
-Registra um novo usuário e retorna um JWT token.
+Registra um novo usuário `Editor` e retorna JWT.
 
-**Body:**
 ```json
 {
   "email": "user@example.com",
@@ -32,18 +43,12 @@ Registra um novo usuário e retorna um JWT token.
 }
 ```
 
-- `role`: `0` = Admin, `1` = Editor
+Mesmo no exemplo acima, `role: 0` **não concede Admin**; a resposta deve reportar `Editor`.
 
-**Respostas:**
-- `201`: Usuário criado, retorna `LoginResponse` com token
-- `400`: Dados inválidos (email, senha < 6 chars, nome vazio)
-- `409`: Email já registrado
+Respostas: `201`, `400`, `409`.
 
 ### POST /auth/login
 
-Autentica e retorna JWT token.
-
-**Body:**
 ```json
 {
   "email": "user@example.com",
@@ -51,107 +56,47 @@ Autentica e retorna JWT token.
 }
 ```
 
-**Respostas:**
-- `200`: Login bem-sucedido, retorna `LoginResponse`
-- `400`: Email ou senha vazios
-- `401`: Credenciais inválidas
+Respostas: `200`, `400`, `401`.
 
-### GET /categories
+## Categories
 
-Lista todas as categorias. Requer autenticação.
+| Método | Rota | Autorização | Respostas principais |
+|---|---|---|---|
+| GET | `/categories` | autenticado | 200, 401 |
+| GET | `/categories/{id}` | autenticado | 200, 401, 404 |
+| POST | `/categories` | Admin | 201, 400, 401, 403, 409 |
+| PUT | `/categories/{id}` | Admin | 200, 400, 401, 403, 404, 409 |
+| DELETE | `/categories/{id}` | Admin | 204, 401, 403, 404, 409 |
 
-**Resposta 200:**
-```json
-[
-  {
-    "id": 1,
-    "name": "Fiction",
-    "description": "Novels and literary works",
-    "bookCount": 5
-  }
-]
-```
+Uma categoria com livros associados não pode ser removida.
 
-### GET /categories/{id}
-
-Retorna uma categoria por ID. Requer autenticação.
-
-**Respostas:** `200` (categoria), `401`, `404`
-
-### POST /categories
-
-Cria uma categoria. Requer role Admin.
-
-**Body:**
-```json
-{
-  "name": "Category Name",
-  "description": "Optional description"
-}
-```
-
-**Respostas:** `201`, `400` (validação), `401`, `403`, `409` (nome duplicado)
-
-### PUT /categories/{id}
-
-Atualiza uma categoria. Requer role Admin.
-
-**Body:** Mesmo formato de POST.
-
-**Respostas:** `200`, `400`, `401`, `403`, `404`, `409`
-
-### DELETE /categories/{id}
-
-Remove uma categoria (somente se não tiver livros associados). Requer role Admin.
-
-**Respostas:** `204`, `401`, `403`, `404`, `409` (tem livros)
+## Books
 
 ### GET /books
 
-Lista livros com paginação e filtros opcionais. Requer autenticação.
+Requer autenticação. Query params:
 
-**Query params:**
-- `page` (int, default 1)
-- `pageSize` (int, default 10, max 50)
-- `title` (string, filtro parcial case-insensitive)
-- `author` (string, filtro parcial case-insensitive)
+- `page`: default 1;
+- `pageSize`: default 10, limitado a 1–50;
+- `title`: filtro parcial;
+- `author`: filtro parcial.
 
-**Resposta 200:**
+Exemplo de resposta:
+
 ```json
 {
-  "items": [
-    {
-      "id": 1,
-      "title": "Clean Code",
-      "author": "Robert C. Martin",
-      "isbn": "9780132350884",
-      "year": 2008,
-      "price": 39.99,
-      "stock": 15,
-      "categoryId": 2,
-      "categoryName": "Technology",
-      "createdAt": "2024-01-01T00:00:00Z",
-      "updatedAt": null
-    }
-  ],
+  "items": [],
   "page": 1,
   "pageSize": 10,
-  "totalCount": 2,
-  "totalPages": 1
+  "totalCount": 0,
+  "totalPages": 0
 }
 ```
 
-### GET /books/{id}
-
-Retorna um livro por ID. Requer autenticação.
-
-**Respostas:** `200`, `401`, `404`
-
 ### POST /books
 
-Cria um livro. Requer role Admin ou Editor.
+Roles: `Admin,Editor`.
 
-**Body:**
 ```json
 {
   "title": "Book Title",
@@ -164,46 +109,38 @@ Cria um livro. Requer role Admin ou Editor.
 }
 ```
 
-**Validações:**
-- Title: obrigatório, max 200 chars
-- Author: obrigatório, max 150 chars
-- ISBN: obrigatório, 10-13 chars, único
-- Year: entre 1450 e ano atual + 1
-- Price: >= 0
-- Stock: >= 0
-- CategoryId: deve existir
+Validações:
 
-**Respostas:** `201`, `400`, `401`, `403`, `409` (ISBN duplicado)
+- título obrigatório, máximo 200 caracteres;
+- autor obrigatório, máximo 150;
+- ISBN obrigatório, 10–13 caracteres e único;
+- ano entre 1450 e ano atual + 1;
+- preço >= 0;
+- estoque >= 0;
+- categoria deve existir.
 
-### PUT /books/{id}
+Respostas: `201`, `400`, `401`, `403`, `409`.
 
-Atualiza um livro. Requer role Admin.
+### Demais endpoints de livros
 
-**Body:** Mesmo formato de POST.
+| Método | Rota | Autorização | Respostas principais |
+|---|---|---|---|
+| GET | `/books/{id}` | autenticado | 200, 401, 404 |
+| PUT | `/books/{id}` | Admin | 200, 400, 401, 403, 404, 409 |
+| DELETE | `/books/{id}` | Admin | 204, 401, 403, 404 |
 
-**Respostas:** `200`, `400`, `401`, `403`, `404`, `409`
+## Users
 
-### DELETE /books/{id}
+| Método | Rota | Autorização |
+|---|---|---|
+| GET | `/users` | Admin |
+| GET | `/users/{id}` | Admin |
 
-Remove um livro. Requer role Admin.
+## Erros de validação
 
-**Respostas:** `204`, `401`, `403`, `404`
+A API usa uma representação consistente com informações de Problem Details, incluindo `type`, `title`, `status`, `detail`, `instance` e `errors`.
 
-### GET /users
-
-Lista todos os usuários (paginado). Requer role Admin.
-
-**Respostas:** `200`, `401`, `403`
-
-### GET /users/{id}
-
-Retorna um usuário por ID. Requer role Admin.
-
-**Respostas:** `200`, `401`, `403`, `404`
-
-## Formato de Erro (Problem Details)
-
-Erros de validação seguem o padrão RFC 9110:
+Exemplo:
 
 ```json
 {
@@ -213,8 +150,9 @@ Erros de validação seguem o padrão RFC 9110:
   "detail": "Invalid book data.",
   "instance": "/books",
   "errors": [
-    "Title is required.",
     "ISBN must be between 10 and 13 characters."
   ]
 }
 ```
+
+Para uma sequência prática de requests, consulte [`../requests.http`](../requests.http).
