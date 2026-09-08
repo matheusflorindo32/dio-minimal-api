@@ -1,75 +1,92 @@
-# Auditoria independente — status baseado em evidências
+# Auditoria Independente — Evidence-First
 
-**Data:** 07/09/2026  
-**Baseline auditada:** `af5f3a06f30a74cbb3cb96ed79ad819e2f0aca0c`  
-**Branch de correção:** `fix/premium-elite-audit`
+**Data:** 08/09/2026  
+**Baseline inicial:** `af5f3a06f30a74cbb3cb96ed79ad819e2f0aca0c`  
+**Baseline supply chain:** `23319b9073ac241ab2c61b36a0fd5f3b5ecd0c7b`  
+**Branch final de remediação:** `fix/supply-chain-security`
 
-> Este documento substitui a auditoria anterior que atribuía nota 9,0/10 sem conseguir executar o build. A certificação atual só considera evidência produzida por código, testes e GitHub Actions.
+> Esta auditoria não usa a antiga nota 9,0/10 como evidência. O veredicto é baseado em código, testes e GitHub Actions.
 
-## Achados confirmados na baseline
+## Revisor A — .NET Engineering
 
-| ID | Achado | Prioridade | Evidência/impacto | Estado |
-|---|---|---|---|---|
-| A-01 | Build quebrado por uso de `.WithOpenApi()` sem pacote correspondente | P0 | CI da `main` falhava com 14 erros CS1061 | corrigido na branch |
-| A-02 | Projeto de integração fora da solution | P0 | restore/build da solution não compilava a suíte de integração | corrigido |
-| A-03 | IntegrationTests usava EF InMemory sem o pacote | P0 | compilação falhava assim que o projeto passou a entrar na solution | corrigido |
-| A-04 | Teste de paginação dependia do seed e esperava contagem incorreta | P1 | 30/31 testes unitários passavam | corrigido com isolamento |
-| A-05 | Registro público permitia solicitar `Admin` | P0 Segurança | elevação de privilégio anônima | corrigido + teste de integração |
-| A-06 | Credencial Admin documentada não correspondia ao hash seed | P1 | login de demonstração inconsistente | corrigido |
-| A-07 | Startup chamava `Migrate()` sem migrations versionadas | P1 | fresh clone poderia não inicializar o schema como documentado | corrigido com `EnsureCreated()` para este escopo educacional |
-| A-08 | README/requests usavam porta 5000 enquanto launch profile usa 5004 | P1 DX | onboarding incorreto | corrigido |
-| A-09 | Healthcheck Docker dependia de `curl` ausente | P1 DevOps | container poderia ficar unhealthy | corrigido |
-| A-10 | Compose usava campo `version` obsoleto | P2 | warning e ruído operacional | corrigido |
+### Findings resolvidos
 
-## Revisão Backend
+- `.WithOpenApi()` sem dependência correspondente quebrava a compilação;
+- IntegrationTests estava fora da solution;
+- provider EF InMemory ausente;
+- fixtures e teste de paginação continham premissas incorretas;
+- pacotes Microsoft 8.0.0 estavam desatualizados e introduziam transitivos vulneráveis;
+- stack de testes antigo introduzia `System.Net.Http 4.3.0` e `System.Text.RegularExpressions 4.3.0` com advisories High.
 
-Pontos positivos mantidos:
+### Estado verificado
 
-- Minimal APIs organizadas em route groups;
-- DTOs separados das entidades;
-- EF Core com constraints e relacionamento Book → Category;
-- paginação e filtros;
-- sem camadas artificiais somente para aumentar complexidade.
+No run #21 do PR #2:
 
-Pontos residuais não bloqueantes:
+- Release build: PASS, 0 warnings / 0 errors;
+- 31/31 unit tests: PASS;
+- 34/34 integration tests: PASS;
+- total: 65/65;
+- .NET permanece em `net8.0`;
+- nenhuma mudança arquitetural desproporcional foi introduzida.
 
-- `UserService` usa HMACSHA256 com salt, não uma KDF lenta específica para armazenamento de senha;
-- a solução é propositalmente monolítica e educacional.
+**Conclusão do Revisor A:** APROVADO para o escopo educacional.
 
-## Revisão Security / Red Team
+## Revisor B — Application / Supply Chain Security
 
-O principal blocker encontrado foi a possibilidade de autoatribuição de `Admin` pelo endpoint público de registro. A correção força qualquer registro público para `Editor` e existe teste de integração que envia `role=0` e exige retorno `Editor`.
+### Findings resolvidos
 
-Limitações assumidas e documentadas:
+- autoatribuição pública de `Admin` foi eliminada e coberta por integração;
+- vulnerability scan que antes era apenas informativo foi convertido em hard gate para Critical/High;
+- run #19 provou que o gate falha quando High existe;
+- após atualizar dependências, run #21 informou que Api, UnitTests e IntegrationTests não possuem pacotes vulneráveis nas fontes NuGet consultadas.
 
+### Limitações não bloqueantes
+
+- hashing de senha usa HMACSHA256 + salt, não KDF lenta dedicada;
+- CORS permissivo para demonstração;
 - sem rate limiting;
-- CORS permissivo para facilitar execução educacional;
-- Swagger disponível no ambiente do exercício;
-- estratégia de senha não é apresentada como production-grade.
+- sem deployment production-grade.
 
-Esses itens ficam fora do escopo obrigatório do desafio e não justificam adicionar infraestrutura desproporcional.
+Esses itens permanecem documentados e não são apresentados como segurança de produção.
 
-## Revisão QA
+**Conclusão do Revisor B:** ZERO Critical/High conhecidos no scan atual; APROVADO para o desafio DIO.
 
-O processo de auditoria mostrou por que quantidade de arquivos de teste não é suficiente: na baseline, IntegrationTests existia mas não era compilado pela solution. Após corrigir isso, o CI passou a revelar problemas reais nos fixtures e no contrato.
+## Revisor C — DIO / Portfolio
 
-Critério final: somente considerar a suíte aprovada quando GitHub Actions registrar build + unit tests + integration tests com sucesso no mesmo SHA.
+O projeto mantém o objetivo do desafio e acrescenta, sem converter o exercício em arquitetura enterprise:
 
-## Revisão DevOps
+- Minimal API em .NET 8;
+- EF Core + SQLite;
+- JWT + roles;
+- DTOs;
+- paginação/filtros;
+- 65 testes automatizados;
+- Docker;
+- CI com supply-chain gate;
+- documentação de arquitetura, segurança e aprendizado.
 
-O quality gate foi ampliado para verificar:
+A documentação evita claim `production-ready` e distingue qualidade educacional de requisitos de produção.
 
-1. restore;
-2. build Release;
-3. unit tests;
-4. integration tests;
-5. pacotes NuGet vulneráveis;
-6. `docker compose config`;
-7. `docker build`;
-8. artifacts `.trx`.
+**Conclusão do Revisor C:** aderência DIO integral e forte valor de portfólio.
 
-## Veredicto
+## Consolidação independente
 
-A baseline `af5f3a06...` é **NO-GO** e a antiga nota 9,0/10 não deve ser usada como certificação.
+| Área | Resultado |
+|---|---|
+| .NET / Build | PASS |
+| Unit tests | 31/31 PASS |
+| Integration tests | 34/34 PASS |
+| AppSec blocker conhecido | 0 |
+| NuGet Critical | 0 conhecido no run #21 |
+| NuGet High | 0 conhecido no run #21 |
+| NuGet Moderate | 0 reportado no run #21 |
+| Security gate | PASS e comportamento de falha verificado no run #19 |
+| Docker Compose | PASS |
+| Docker image build | PASS |
+| Overengineering | NÃO identificado |
 
-O veredicto final da branch corrigida deve ser lido em `docs/delivery-report.md` e depende do resultado real do GitHub Actions para o SHA final.
+## Veredicto independente pré-merge
+
+### 🟢 GO PARA MERGE DO PR #2
+
+O projeto cumpre os hard gates na branch de remediação. A aprovação definitiva para entrega à DIO exige apenas repetir o mesmo pipeline com sucesso no commit final da `main` após o merge.
