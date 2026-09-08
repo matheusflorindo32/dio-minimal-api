@@ -33,8 +33,22 @@ jobs:
       - name: Run integration tests
         run: dotnet test tests/BookStore.IntegrationTests --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=integration-results.trx"
 
-      - name: Check vulnerable NuGet packages
-        run: dotnet list package --vulnerable --include-transitive
+      - name: Enforce NuGet vulnerability gate
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet list package --vulnerable --include-transitive | tee vulnerability-report.txt
+
+          if grep -Eq '^[[:space:]]*>?[[:space:]].*[[:space:]](Critical|High)[[:space:]]+https?://' vulnerability-report.txt; then
+            echo '::error::Critical or High NuGet vulnerability detected. Failing the security gate.'
+            exit 1
+          fi
+
+          if grep -Eq '^[[:space:]]*>?[[:space:]].*[[:space:]]Moderate[[:space:]]+https?://' vulnerability-report.txt; then
+            echo '::warning::Moderate NuGet vulnerabilities remain. Review and document them before release.'
+          fi
+
+          echo 'NuGet security gate passed: no Critical/High vulnerabilities detected.'
 
       - name: Validate Docker Compose
         run: docker compose config --quiet
@@ -47,4 +61,6 @@ jobs:
         if: always()
         with:
           name: test-results
-          path: '**/TestResults/*.trx'
+          path: |
+            **/TestResults/*.trx
+            vulnerability-report.txt
